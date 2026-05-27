@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anglepoint | ROI Extractor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --navy:      #0D2240;
+            --gold:      #F5A623;
+            --teal:      #1D9E75;
+            --dark:      #0B1F3A;
+            --dark2:     #081629;
+            --card:      #0D2240;
+            --border:    #1e3a5f;
+            --text:      #e8edf4;
+            --muted:     #7a8fa8;
+            --red:       #e85555;
+            --blue:      #5b9bd5;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--dark);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* ── HEADER ─────────────────────────────────── */
+        .header {
+            background: var(--navy);
+            border-bottom: 3px solid var(--gold);
+            padding: 0 32px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand-logo {
+            width: 38px; height: 38px;
+            background: var(--gold);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; color: var(--dark2); font-size: 20px;
+            letter-spacing: -1px;
+        }
+        .brand-name { font-size: 18px; font-weight: 700; }
+        .brand-sub  { font-size: 12px; color: var(--muted); }
+        .header-pill {
+            background: rgba(245,166,35,.15);
+            border: 1px solid rgba(245,166,35,.35);
+            color: var(--gold);
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* ── LAYOUT ──────────────────────────────────── */
+        .main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+        /* ── CARD BASE ───────────────────────────────── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .card-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: var(--muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ── SETUP GRID ──────────────────────────────── */
+        .setup-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        @media (max-width: 720px) { .setup-grid { grid-template-columns: 1fr; } }
+
+        /* ── INPUTS ──────────────────────────────────── */
+        .field-label { font-size: 13px; color: var(--muted); margin-bottom: 8px; display: block; }
+        .input {
+            width: 100%;
+            background: var(--dark2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            transition: border-color .2s;
+        }
+        .input:focus { outline: none; border-color: var(--gold); }
+        .input-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+        .key-status {
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 12px; font-size: 13px; color: var(--muted);
+        }
+        .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            flex-shrink: 0;
+            transition: background .2s;
+        }
+        .dot.ok   { background: var(--teal); }
+        .dot.fail { background: var(--red); }
+
+        /* ── UPLOAD ──────────────────────────────────── */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 36px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            background: var(--dark2);
+        }
+        .drop-zone:hover, .drop-zone.over {
+            border-color: var(--gold);
+            background: rgba(245,166,35,.05);
+        }
+        .drop-icon  { font-size: 36px; display: block; margin-bottom: 10px; }
+        .drop-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .drop-hint  { font-size: 13px; color: var(--muted); }
+        input[type="file"] { display: none; }
+
+        .file-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(29,158,117,.1);
+            border: 1px solid rgba(29,158,117,.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-top: 12px;
+        }
+        .file-chip-name { font-size: 14px; color: var(--teal); font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-chip-size { font-size: 12px; color: var(--muted); }
+        .file-chip-clear {
+            background: none; border: none; color: var(--muted);
+            cursor: pointer; font-size: 16px; padding: 0 4px;
+            line-height: 1;
+        }
+        .file-chip-clear:hover { color: var(--red); }
+
+        /* ── PROCESS BUTTON ──────────────────────────── */
+        .btn-process {
+            width: 100%;
+            background: var(--gold);
+            color: var(--dark2);
+            border: none;
+            border-radius: 8px;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 16px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: background .2s, box-shadow .2s, transform .1s;
+        }
+        .btn-process:hover:not(:disabled) {
+            background: #e8952a;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(245,166,35,.3);
+        }
+        .btn-process:disabled { opacity: .45; cursor: not-allowed; }
+
+        /* ── LOADING ──────────────────────────────────── */
+        .loading-wrap {
+            display: none;
+            text-align: center;
+            padding: 72px 24px;
+        }
+        .spinner {
+            width: 52px; height: 52px;
+            border: 4px solid var(--border);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin .75s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-label { font-size: 16px; color: var(--muted); }
+        .loading-step  { font-size: 13px; color: var(--border); margin-top: 8px; }
+
+        /* ── ERROR ───────────────────────────────────── */
+        .error-box {
+            display: none;
+            background: rgba(232,85,85,.1);
+            border: 1px solid rgba(232,85,85,.35);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .error-title { color: var(--red); font-weight: 600; margin-bottom: 6px; }
+        .error-body  { color: var(--muted); font-size: 14px; white-space: pre-wrap; }
+
+        /* ── RESULTS ──────────────────────────────────── */
+        .results-wrap { display: none; }
+
+        .results-topbar {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            margin-bottom: 24px;
+            flex-wrap: wrap; gap: 12px;
+        }
+        .results-title { font-size: 22px; font-weight: 700; }
+        .results-sub   { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+        .btn-reset {
+            background: var(--border);
+            color: var(--text);
+            border: none; border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            transition: background .2s;
+        }
+        .btn-reset:hover { background: #2d4f7a; }
+
+        /* ── DOC INFO STRIP ──────────────────────────── */
+        .doc-strip {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--gold);
+            border-radius: 8px;
+            padding: 16px 24px;
+            display: flex; gap: 36px; flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .doc-item-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+        .doc-item-value { font-size: 15px; font-weight: 600; }
+
+        /* ── HERO METRIC ─────────────────────────────── */
+        .hero-metric {
+            background: linear-gradient(135deg, #0D2240 0%, #0e2d4f 100%);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--gold);
+            border-radius: 12px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 16px;
+        }
+        .hero-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+        .hero-value { font-size: 44px; font-weight: 800; color: var(--gold); line-height: 1; letter-spacing: -1px; }
+        .hero-desc  { font-size: 13px; color: var(--muted); margin-top: 6px; }
+        .hero-pills { display: flex; gap: 12px; flex-wrap: wrap; }
+        .hero-pill {
+            background: rgba(255,255,255,.06);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 16px;
+            text-align: center;
+            min-width: 130px;
+        }
+        .hero-pill-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+        .hero-pill-value { font-size: 18px; font-weight: 700; }
+        .hp-teal  { color: var(--teal); }
+        .hp-gold  { color: var(--gold); }
+        .hp-red   { color: var(--red); }
+        .hp-blue  { color: var(--blue); }
+
+        /* ── METRIC CARDS ────────────────────────────── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .metric-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .metric-card.m-gold::before  { background: var(--gold); }
+        .metric-card.m-teal::before  { background: var(--teal); }
+        .metric-card.m-red::before   { background: var(--red); }
+        .metric-card.m-blue::before  { background: var(--blue); }
+        .metric-card.m-gold  .mc-val { color: var(--gold); }
+        .metric-card.m-teal  .mc-val { color: var(--teal); }
+        .metric-card.m-red   .mc-val { color: var(--red); }
+        .metric-card.m-blue  .mc-val { color: var(--blue); }
+        .mc-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; line-height: 1.4; margin-bottom: 8px; }
+        .mc-val   { font-size: 22px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+        .mc-note  { font-size: 11px; color: var(--muted); }
+
+        /* ── VIZ GRID ────────────────────────────────── */
+        .viz-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 860px) { .viz-grid { grid-template-columns: 1fr; } }
+
+        .viz-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            overflow-x: auto;
+        }
+        .viz-title { font-size: 14px; font-weight: 600; margin-bottom: 20px; }
+
+        /* ── BAR CHART ───────────────────────────────── */
+        .chart-svg { width: 100%; overflow: visible; }
+
+        /* ── BREAKDOWN TABLE ─────────────────────────── */
+        .bd-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 380px; }
+        .bd-table th {
+            text-align: left; padding: 8px 10px;
+            color: var(--muted); font-size: 11px;
+            text-transform: uppercase; letter-spacing: .05em;
+            border-bottom: 1px solid var(--border);
+        }
+        .bd-table td {
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+        }
+        .bd-table tr:last-child td { border-bottom: none; }
+        .bd-table tr:hover td { background: rgba(255,255,255,.025); }
+        .td-amt { text-align: right; font-family: 'Courier New', monospace; font-weight: 600; }
+        .td-amt.pos { color: var(--teal); }
+        .td-amt.neg { color: var(--red); }
+        .cat-badge {
+            display: inline-block;
+            padding: 2px 8px; border-radius: 12px;
+            font-size: 11px; font-weight: 600;
+        }
+        .cat-risk  { background: rgba(232,85,85,.2);   color: var(--red); }
+        .cat-avoid { background: rgba(245,166,35,.2);  color: var(--gold); }
+        .cat-optim { background: rgba(91,155,213,.2);  color: var(--blue); }
+        .cat-save  { background: rgba(29,158,117,.2);  color: var(--teal); }
+        .totals-row td { border-top: 2px solid var(--border) !important; font-weight: 700; }
+
+        /* ── DOMO PREVIEW ────────────────────────────── */
+        .domo-wrap {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+        }
+        .domo-header {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 16px;
+        }
+        .domo-title { font-size: 14px; font-weight: 600; }
+        .domo-badge {
+            background: rgba(91,155,213,.2); color: var(--blue);
+            padding: 3px 10px; border-radius: 4px;
+            font-size: 11px; font-weight: 600;
+        }
+        .domo-tbl { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1000px; }
+        .domo-tbl th {
+            background: var(--dark2);
+            padding: 8px 10px; text-align: left;
+            color: var(--muted); font-size: 11px; font-weight: 600;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .domo-tbl td {
+            padding: 10px 10px;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .domo-tbl td.filled { background: rgba(29,158,117,.1); color: var(--teal); font-weight: 600; }
+        .domo-tbl td.empty  { background: rgba(255,255,255,.02); color: var(--border); font-style: italic; }
+
+        /* ── EXPORT BAR ──────────────────────────────── */
+        .export-bar {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 16px; flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+        .export-info-title { font-size: 16px; font-weight: 600; margin-bottom: 3px; }
+        .export-info-sub   { font-size: 13px; color: var(--muted); }
+        .btn-export {
+            background: var(--teal);
+            color: #fff; border: none;
+            border-radius: 8px; padding: 12px 24px;
+            font-size: 14px; font-weight: 700;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
+            transition: background .2s, box-shadow .2s, transform .1s;
+            white-space: nowrap;
+        }
+        .btn-export:hover {
+            background: #17896a;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(29,158,117,.3);
+        }
+
+        /* ── UTILS ───────────────────────────────────── */
+        .hide { display: none !important; }
+        @media (max-width: 500px) {
+            .metrics-grid { grid-template-columns: 1fr 1fr; }
+            .header { padding: 0 16px; }
+            .main   { padding: 20px 14px; }
+            .hero-value { font-size: 32px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────────────── -->
+<header class="header">
+    <div class="brand">
+        <div class="brand-logo">A</div>
+        <div>
+            <div class="brand-name">ROI Extractor</div>
+            <div class="brand-sub">Anglepoint · ROAR Document Analysis</div>
+        </div>
+    </div>
+    <div class="header-pill">Powered by Claude AI</div>
+</header>
+
+<!-- ── MAIN ───────────────────────────────────────────── -->
+<main class="main">
+
+    <!-- SETUP -->
+    <div class="setup-grid" id="setupSection">
+
+        <!-- API Key -->
+        <div class="card">
+            <div class="card-label">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                API Configuration
+            </div>
+            <label class="field-label" for="apiKey">Anthropic API Key</label>
+            <input id="apiKey" type="password" class="input" placeholder="sk-ant-api03-…" autocomplete="off" oninput="onApiKey(this)">
+            <div class="input-hint">Your key is used only to call Anthropic's API directly from your browser — it is never stored or transmitted elsewhere.</div>
+            <div class="key-status">
+                <div class="dot" id="keyDot"></div>
+                <span id="keyMsg">Enter your API key to begin</span>
+            </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="card">
+            <div class="card-label">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                Upload ROAR Document
+            </div>
+            <div class="drop-zone" id="dropZone"
+                 onclick="document.getElementById('fileIn').click()"
+                 ondragover="onDragOver(event)"
+                 ondragleave="onDragLeave(event)"
+                 ondrop="onDrop(event)">
+                <span class="drop-icon">📄</span>
+                <div class="drop-title">Drop your ROAR file here</div>
+                <div class="drop-hint">Supports PDF and PPTX · Max 10 MB</div>
+            </div>
+            <input type="file" id="fileIn" accept=".pdf,.pptx" onchange="onFileSelect(event)">
+            <div id="fileChip" class="file-chip hide">
+                <span>📋</span>
+                <span class="file-chip-name" id="chipName"></span>
+                <span class="file-chip-size" id="chipSize"></span>
+                <button class="file-chip-clear" onclick="clearFile()" title="Remove">✕</button>
+            </div>
+            <button class="btn-process" id="processBtn" onclick="run()" disabled>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Extract ROI Values
+            </button>
+        </div>
+    </div>
+
+    <!-- LOADING -->
+    <div class="loading-wrap" id="loadingWrap">
+        <div class="spinner"></div>
+        <div class="loading-label" id="loadLabel">Analyzing document…</div>
+        <div class="loading-step"  id="loadStep"></div>
+    </div>
+
+    <!-- ERROR -->
+    <div class="error-box" id="errorBox">
+        <div class="error-title">⚠ Extraction Error</div>
+        <div class="error-body" id="errorBody"></div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="results-wrap" id="resultsWrap">
+
+        <!-- Top bar -->
+        <div class="results-topbar">
+            <div>
+                <div class="results-title">Value at a Glance</div>
+                <div class="results-sub" id="resultsSub">ROAR Analysis Results</div>
+            </div>
+            <button class="btn-reset" onclick="reset()">↺ New Document</button>
+        </div>
+
+        <!-- Doc info strip -->
+        <div class="doc-strip" id="docStrip"></div>
+
+        <!-- Hero -->
+        <div class="hero-metric" id="heroMetric"></div>
+
+        <!-- 7 metric cards -->
+        <div class="metrics-grid" id="metricsGrid"></div>
+
+        <!-- Chart + breakdown -->
+        <div class="viz-grid">
+            <div class="viz-card">
+                <div class="viz-title">Financial Overview — ROI Categories</div>
+                <svg class="chart-svg" id="chartSvg"></svg>
+            </div>
+            <div class="viz-card">
+                <div class="viz-title">Line Item Breakdown</div>
+                <table class="bd-table">
+                    <thead>
+                        <tr>
+                            <th>Product / Item</th>
+                            <th>Category</th>
+                            <th style="text-align:right">Identified</th>
+                            <th style="text-align:right">Accomplished</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bdBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Domo preview -->
+        <div class="domo-wrap">
+            <div class="domo-header">
+                <div class="domo-title">Domo Row Preview</div>
+                <span class="domo-badge">Ready to Export</span>
+            </div>
+            <table class="domo-tbl">
+                <thead id="domoHead"></thead>
+                <tbody id="domoBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Export -->
+        <div class="export-bar">
+            <div>
+                <div class="export-info-title">Export to CSV</div>
+                <div class="export-info-sub">Formatted exactly for the Domo ROI tracking table — paste-ready</div>
+            </div>
+            <button class="btn-export" onclick="exportCsv()">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Download CSV
+            </button>
+        </div>
+    </div>
+
+</main>
+
+<script>
+// ════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════
+const S = { apiKey: '', file: null, data: null };
+
+const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const MODEL      = 'claude-sonnet-4-20250514';
+
+const DOMO_COLS = [
+    'Year','Client','Publisher','Date Delivered','Currency',
+    'Identified Risk','Identified Cost Avoidance','Accomplished Cost Avoidance',
+    'Identified Cost Optimization','Accomplished Cost Optimization',
+    'Realized Cost Savings','Annual Publisher Contract Spend',
+    'Pricing Available','Notes','Elevate Deliverable'
+];
+
+const PROMPT = `You are analyzing an Anglepoint ROAR (Risk & Opportunity Assessment Report) — an IT Asset Management consulting deliverable. Extract all ROI metrics and return them as a single JSON object.
+
+Return ONLY valid JSON, no markdown fences, no other text:
+{
+  "client": "client company name",
+  "publisher": "software publisher (e.g. IBM, Microsoft, Oracle)",
+  "date_delivered": "date as written in the document",
+  "year": "4-digit year",
+  "currency": "USD",
+  "identified_risk": 0,
+  "identified_cost_avoidance": 0,
+  "accomplished_cost_avoidance": 0,
+  "identified_cost_optimization": 0,
+  "accomplished_cost_optimization": 0,
+  "realized_cost_savings": 0,
+  "annual_publisher_contract_spend": 0,
+  "pricing_available": "Yes",
+  "notes": "",
+  "elevate_deliverable": "Yes",
+  "breakdown": [
+    {
+      "product": "product or topic name",
+      "category": "Risk|Cost Avoidance|Cost Optimization|Savings",
+      "identified": 0,
+      "accomplished": 0,
+      "description": "one line description"
+    }
+  ]
+}
+
+Extraction rules:
+- All monetary values: plain numbers only, no $ or commas, 0 if not found
+- Empty string for missing text fields
+- identified_risk: total compliance/audit risk exposure if unaddressed
+- identified_cost_avoidance: licensing costs that COULD be avoided
+- accomplished_cost_avoidance: avoidance costs already ACHIEVED
+- identified_cost_optimization: licensing optimization opportunities identified
+- accomplished_cost_optimization: optimizations already implemented
+- realized_cost_savings: total confirmed/actual savings (sub-capacity, ILMT, BYOL, etc.)
+- annual_publisher_contract_spend: client's annual spend with that publisher
+- Populate breakdown with EVERY distinct financial line item found (sub-capacity, non-ILMT, true-up, BYOL, etc.)
+- pricing_available: Yes/No/Partial — whether current pricing was used in calculations
+- elevate_deliverable: Yes/No — whether this is an Elevate-tier deliverable
+- Return ONLY the JSON object, nothing else`;
+
+// ════════════════════════════════════════════════════
+// UI EVENT HANDLERS
+// ════════════════════════════════════════════════════
+function onApiKey(el) {
+    S.apiKey = el.value.trim();
+    const dot = id('keyDot'), msg = id('keyMsg');
+    if (!S.apiKey) {
+        dot.className = 'dot'; msg.textContent = 'Enter your API key to begin';
+    } else if (S.apiKey.startsWith('sk-ant-')) {
+        dot.className = 'dot ok'; msg.textContent = 'API key looks valid ✓';
+    } else {
+        dot.className = 'dot fail'; msg.textContent = 'Key should start with sk-ant-…';
+    }
+    sync();
+}
+
+function onDragOver(e)  { e.preventDefault(); id('dropZone').classList.add('over'); }
+function onDragLeave(e) { id('dropZone').classList.remove('over'); }
+function onDrop(e) {
+    e.preventDefault(); id('dropZone').classList.remove('over');
+    const f = e.dataTransfer.files[0]; if (f) setFile(f);
+}
+function onFileSelect(e) { const f = e.target.files[0]; if (f) setFile(f); }
+
+function setFile(file) {
+    const ok = file.name.endsWith('.pdf') || file.name.endsWith('.pptx');
+    if (!ok) { showError('Please upload a PDF or PPTX file.'); return; }
+    if (file.size > 10 * 1024 * 1024) { showError('File exceeds 10 MB limit. Please use a smaller file.'); return; }
+    S.file = file;
+    id('chipName').textContent = file.name;
+    id('chipSize').textContent = fmtBytes(file.size);
+    id('dropZone').classList.add('hide');
+    id('fileChip').classList.remove('hide');
+    clearError();
+    sync();
+}
+
+function clearFile() {
+    S.file = null;
+    id('fileIn').value = '';
+    id('dropZone').classList.remove('hide');
+    id('fileChip').classList.add('hide');
+    sync();
+}
+
+function sync() {
+    id('processBtn').disabled = !(S.apiKey.startsWith('sk-ant-') && S.file);
+}
+
+// ════════════════════════════════════════════════════
+// MAIN PROCESSING FLOW
+// ════════════════════════════════════════════════════
+async function run() {
+    if (!S.file || !S.apiKey) return;
+    show('loadingWrap'); hide('setupSection'); hide('resultsWrap'); clearError();
+    try {
+        setLoad('Reading document…');
+        let blocks;
+        if (S.file.name.endsWith('.pdf')) {
+            blocks = await pdfBlocks(S.file);
+        } else {
+            blocks = await pptxBlocks(S.file);
+        }
+        setLoad('Sending to Claude AI for analysis…', 'This may take 10–30 seconds for large documents');
+        const raw = await callClaude(blocks);
+        setLoad('Parsing extracted values…');
+        S.data = parseResp(raw);
+        render(S.data);
+        hide('loadingWrap'); show('resultsWrap');
+    } catch (err) {
+        hide('loadingWrap'); show('setupSection');
+        showError(err.message || String(err));
+    }
+}
+
+function setLoad(msg, sub = '') {
+    id('loadLabel').textContent = msg;
+    id('loadStep').textContent  = sub;
+}
+
+// ════════════════════════════════════════════════════
+// PDF
+// ════════════════════════════════════════════════════
+async function pdfBlocks(file) {
+    const b64 = await toB64(file);
+    return [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: PROMPT }
+    ];
+}
+
+function toB64(file) {
+    return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload  = () => res(r.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+    });
+}
+
+// ════════════════════════════════════════════════════
+// PPTX
+// ════════════════════════════════════════════════════
+async function pptxBlocks(file) {
+    if (typeof JSZip === 'undefined') throw new Error('JSZip library not loaded — please refresh and try again.');
+    const buf  = await file.arrayBuffer();
+    const zip  = await JSZip.loadAsync(buf);
+    const keys = Object.keys(zip.files)
+        .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+        .sort((a,b) => {
+            const na = parseInt(a.match(/\d+/)[0]);
+            const nb = parseInt(b.match(/\d+/)[0]);
+            return na - nb;
+        });
+    const parts = [];
+    for (let i = 0; i < keys.length; i++) {
+        const xml  = await zip.files[keys[i]].async('string');
+        const text = xmlToText(xml);
+        if (text.trim()) parts.push(`--- Slide ${i+1} ---\n${text}`);
+    }
+    const combined = parts.join('\n\n');
+    return [{ type: 'text', text: `PPTX Document Content:\n\n${combined}\n\n---\n\n${PROMPT}` }];
+}
+
+function xmlToText(xml) {
+    // Extract paragraphs from <a:p> blocks, each paragraph's <a:t> text runs joined
+    const paras = [];
+    const pRe   = /<a:p[\s>]([\s\S]*?)<\/a:p>/g;
+    const tRe   = /<a:t[^>]*>([\s\S]*?)<\/a:t>/g;
+    let pm;
+    while ((pm = pRe.exec(xml)) !== null) {
+        const pStr = pm[1];
+        const runs = [];
+        let tm;
+        while ((tm = tRe.exec(pStr)) !== null) {
+            runs.push(tm[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"'));
+        }
+        const line = runs.join('').trim();
+        if (line) paras.push(line);
+    }
+    return paras.join('\n');
+}
+
+// ════════════════════════════════════════════════════
+// CLAUDE API
+// ════════════════════════════════════════════════════
+async function callClaude(contentBlocks) {
+    const resp = await fetch(CLAUDE_API, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': S.apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+            model: MODEL,
+            max_tokens: 4096,
+            messages: [{ role: 'user', content: contentBlocks }]
+        })
+    });
+    if (!resp.ok) {
+        let msg = `API error ${resp.status}`;
+        try {
+            const j = await resp.json();
+            msg = j.error?.message || msg;
+        } catch(_) {}
+        throw new Error(msg);
+    }
+    const j = await resp.json();
+    return j.content[0].text;
+}
+
+// ════════════════════════════════════════════════════
+// PARSE
+// ════════════════════════════════════════════════════
+function parseResp(raw) {
+    let s = raw.trim();
+    // Strip markdown code fences if present
+    s = s.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+    // Grab outermost {...}
+    const i0 = s.indexOf('{'), i1 = s.lastIndexOf('}');
+    if (i0 !== -1 && i1 !== -1) s = s.slice(i0, i1+1);
+    let d;
+    try { d = JSON.parse(s); }
+    catch(_) { throw new Error('Claude returned an unexpected format. Please try again.\n\nResponse preview:\n' + raw.slice(0,400)); }
+
+    const NUM = ['identified_risk','identified_cost_avoidance','accomplished_cost_avoidance',
+                 'identified_cost_optimization','accomplished_cost_optimization',
+                 'realized_cost_savings','annual_publisher_contract_spend'];
+    NUM.forEach(k => {
+        const v = d[k];
+        d[k] = typeof v === 'string' ? (parseFloat(v.replace(/[$,]/g,'')) || 0) : (Number(v) || 0);
+    });
+    if (!Array.isArray(d.breakdown)) d.breakdown = [];
+    d.breakdown = d.breakdown.map(row => ({
+        product:     row.product     || '',
+        category:    row.category    || '',
+        identified:  Number(row.identified)  || 0,
+        accomplished:Number(row.accomplished)|| 0,
+        description: row.description || ''
+    }));
+    return d;
+}
+
+// ════════════════════════════════════════════════════
+// RENDER DASHBOARD
+// ════════════════════════════════════════════════════
+function render(d) {
+    id('resultsSub').textContent = [d.client, d.publisher, d.date_delivered].filter(Boolean).join(' · ') || 'ROAR Analysis Results';
+    renderDocStrip(d);
+    renderHero(d);
+    renderMetrics(d);
+    renderChart(d);
+    renderBreakdown(d);
+    renderDomo(d);
+}
+
+function renderDocStrip(d) {
+    const items = [
+        ['Client',           d.client           || '—'],
+        ['Publisher',        d.publisher         || '—'],
+        ['Date Delivered',   d.date_delivered    || '—'],
+        ['Year',             d.year              || '—'],
+        ['Currency',         d.currency          || 'USD'],
+        ['Pricing Available',d.pricing_available || '—']
+    ];
+    id('docStrip').innerHTML = items.map(([l,v]) => `
+        <div>
+            <div class="doc-item-label">${l}</div>
+            <div class="doc-item-value">${v}</div>
+        </div>`).join('');
+}
+
+function renderHero(d) {
+    const totalOpp = d.identified_risk + d.identified_cost_avoidance + d.identified_cost_optimization;
+    const totalAchieved = d.accomplished_cost_avoidance + d.accomplished_cost_optimization + d.realized_cost_savings;
+
+    id('heroMetric').innerHTML = `
+        <div>
+            <div class="hero-label">Total Identified Opportunity</div>
+            <div class="hero-value">${fc(totalOpp)}</div>
+            <div class="hero-desc">Across risk, cost avoidance &amp; optimization</div>
+        </div>
+        <div class="hero-pills">
+            <div class="hero-pill">
+                <div class="hero-pill-label">Achieved / Savings</div>
+                <div class="hero-pill-value hp-teal">${fc(totalAchieved)}</div>
+            </div>
+            <div class="hero-pill">
+                <div class="hero-pill-label">Risk Exposure</div>
+                <div class="hero-pill-value hp-red">${fc(d.identified_risk)}</div>
+            </div>
+            <div class="hero-pill">
+                <div class="hero-pill-label">Annual Contract</div>
+                <div class="hero-pill-value hp-blue">${fc(d.annual_publisher_contract_spend)}</div>
+            </div>
+        </div>`;
+}
+
+function renderMetrics(d) {
+    const cards = [
+        { label:'Identified Risk',                value: d.identified_risk,                  cls:'m-red',  note:'Compliance / audit exposure' },
+        { label:'Cost Avoidance Identified',       value: d.identified_cost_avoidance,        cls:'m-gold', note:'Potential savings identified' },
+        { label:'Cost Avoidance Accomplished',     value: d.accomplished_cost_avoidance,      cls:'m-teal', note:'Already achieved' },
+        { label:'Cost Optimization Identified',    value: d.identified_cost_optimization,     cls:'m-gold', note:'Licensing opportunity' },
+        { label:'Cost Optimization Accomplished',  value: d.accomplished_cost_optimization,   cls:'m-teal', note:'Already implemented' },
+        { label:'Realized Cost Savings',           value: d.realized_cost_savings,            cls:'m-teal', note:'Confirmed savings' },
+        { label:'Annual Contract Spend',           value: d.annual_publisher_contract_spend,  cls:'m-blue', note:`${d.publisher || 'Publisher'} licenses` }
+    ];
+    id('metricsGrid').innerHTML = cards.map(c => `
+        <div class="metric-card ${c.cls}">
+            <div class="mc-label">${c.label}</div>
+            <div class="mc-val">${fc(c.value)}</div>
+            <div class="mc-note">${c.note}</div>
+        </div>`).join('');
+}
+
+function renderChart(d) {
+    const bars = [
+        { label:'Identified Risk',         value: d.identified_risk,                color:'#e85555' },
+        { label:'Cost Avoid. Identified',  value: d.identified_cost_avoidance,       color:'#F5A623' },
+        { label:'Cost Avoid. Accomplished',value: d.accomplished_cost_avoidance,     color:'#1D9E75' },
+        { label:'Cost Optim. Identified',  value: d.identified_cost_optimization,    color:'#F5A623' },
+        { label:'Cost Optim. Accomplished',value: d.accomplished_cost_optimization,  color:'#1D9E75' },
+        { label:'Realized Savings',        value: d.realized_cost_savings,           color:'#1D9E75' },
+        { label:'Annual Contract Spend',   value: d.annual_publisher_contract_spend, color:'#5b9bd5' }
+    ].filter(b => b.value > 0);
+
+    const svg = id('chartSvg');
+    if (!bars.length) {
+        svg.innerHTML = `<text x="50%" y="60" text-anchor="middle" fill="#7a8fa8" font-size="14">No data</text>`;
+        svg.setAttribute('viewBox','0 0 400 80');
+        return;
+    }
+
+    const LW   = 170;  // label col width
+    const VW   = 110;  // value col width
+    const BH   = 26;   // bar height
+    const GAP  = 10;   // gap between bars
+    const PAD  = 8;    // top/bottom padding
+    const W    = 520;  // total svg width
+    const barW = W - LW - VW - 8;
+    const H    = bars.length * (BH + GAP) + PAD * 2;
+    const maxV = Math.max(...bars.map(b => b.value));
+
+    let inner = '';
+    bars.forEach((b, i) => {
+        const y   = PAD + i * (BH + GAP);
+        const bw  = Math.max((b.value / maxV) * barW, 2);
+        const mid = y + BH / 2 + 4;
+        inner += `
+            <text x="${LW - 6}" y="${mid}" text-anchor="end"
+                  fill="#7a8fa8" font-size="11"
+                  font-family="-apple-system,BlinkMacSystemFont,sans-serif">${b.label}</text>
+            <rect x="${LW}" y="${y}" width="${bw}" height="${BH}"
+                  rx="4" fill="${b.color}" opacity="0.85"/>
+            <text x="${LW + bw + 8}" y="${mid}"
+                  fill="${b.color}" font-size="11" font-weight="600"
+                  font-family="'Courier New',monospace">${fc(b.value)}</text>`;
+    });
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.style.height = H + 'px';
+    svg.innerHTML = inner;
+}
+
+function renderBreakdown(d) {
+    const body = id('bdBody');
+    if (!d.breakdown.length) {
+        body.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">No line items found</td></tr>`;
+        return;
+    }
+    const catCls = cat => {
+        const c = (cat||'').toLowerCase();
+        if (c.includes('risk'))       return 'cat-risk';
+        if (c.includes('avoid'))      return 'cat-avoid';
+        if (c.includes('optim'))      return 'cat-optim';
+        return 'cat-save';
+    };
+    let totI = 0, totA = 0;
+    const rows = d.breakdown.map(r => {
+        totI += r.identified; totA += r.accomplished;
+        return `<tr>
+            <td title="${r.description||''}">${r.product||'—'}</td>
+            <td><span class="cat-badge ${catCls(r.category)}">${r.category||'—'}</span></td>
+            <td class="td-amt pos">${r.identified  ? fc(r.identified)   : '—'}</td>
+            <td class="td-amt pos">${r.accomplished ? fc(r.accomplished) : '—'}</td>
+        </tr>`;
+    }).join('');
+    body.innerHTML = rows + `
+        <tr class="totals-row">
+            <td colspan="2"><strong>Total</strong></td>
+            <td class="td-amt pos"><strong>${fc(totI)}</strong></td>
+            <td class="td-amt pos"><strong>${fc(totA)}</strong></td>
+        </tr>`;
+}
+
+function renderDomo(d) {
+    const vals = {
+        'Year':                            d.year              || '',
+        'Client':                          d.client            || '',
+        'Publisher':                       d.publisher         || '',
+        'Date Delivered':                  d.date_delivered    || '',
+        'Currency':                        d.currency          || 'USD',
+        'Identified Risk':                 d.identified_risk                  || '',
+        'Identified Cost Avoidance':       d.identified_cost_avoidance        || '',
+        'Accomplished Cost Avoidance':     d.accomplished_cost_avoidance      || '',
+        'Identified Cost Optimization':    d.identified_cost_optimization     || '',
+        'Accomplished Cost Optimization':  d.accomplished_cost_optimization   || '',
+        'Realized Cost Savings':           d.realized_cost_savings            || '',
+        'Annual Publisher Contract Spend': d.annual_publisher_contract_spend  || '',
+        'Pricing Available':               d.pricing_available || '',
+        'Notes':                           d.notes             || '',
+        'Elevate Deliverable':             d.elevate_deliverable || ''
+    };
+    id('domoHead').innerHTML = '<tr>' + DOMO_COLS.map(c => `<th>${c}</th>`).join('') + '</tr>';
+    id('domoBody').innerHTML  = '<tr>' + DOMO_COLS.map(c => {
+        const v = vals[c];
+        return v !== '' && v !== 0
+            ? `<td class="filled">${typeof v === 'number' ? fn(v) : v}</td>`
+            : `<td class="empty">—</td>`;
+    }).join('') + '</tr>';
+}
+
+// ════════════════════════════════════════════════════
+// EXPORT CSV
+// ════════════════════════════════════════════════════
+function exportCsv() {
+    if (!S.data) return;
+    const d = S.data;
+    const row = [
+        d.year              || '',
+        d.client            || '',
+        d.publisher         || '',
+        d.date_delivered    || '',
+        d.currency          || 'USD',
+        d.identified_risk                  || 0,
+        d.identified_cost_avoidance        || 0,
+        d.accomplished_cost_avoidance      || 0,
+        d.identified_cost_optimization     || 0,
+        d.accomplished_cost_optimization   || 0,
+        d.realized_cost_savings            || 0,
+        d.annual_publisher_contract_spend  || 0,
+        d.pricing_available || '',
+        d.notes             || '',
+        d.elevate_deliverable || ''
+    ];
+    const csv = [
+        DOMO_COLS.map(q).join(','),
+        row.map(q).join(',')
+    ].join('\n');
+    const blob = new Blob([csv], { type:'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `anglepoint-roi-${slug(d.client)}-${slug(d.publisher)}-${d.year||'export'}.csv`
+    });
+    a.click();
+    URL.revokeObjectURL(url);
+}
+const q    = v => `"${String(v).replace(/"/g,'""')}"`;
+const slug = s => (s||'export').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+
+// ════════════════════════════════════════════════════
+// RESET
+// ════════════════════════════════════════════════════
+function reset() {
+    S.file = null; S.data = null;
+    id('fileIn').value = '';
+    id('dropZone').classList.remove('hide');
+    id('fileChip').classList.add('hide');
+    hide('resultsWrap'); clearError();
+    show('setupSection'); sync();
+}
+
+// ════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════
+const id   = s => document.getElementById(s);
+const show = s => { const el = id(s); if (el) el.style.display = ''; };
+const hide = s => { const el = id(s); if (el) el.style.display = 'none'; };
+
+function fc(n) {
+    if (!n || n === 0) return '$0';
+    return '$' + Number(n).toLocaleString('en-US');
+}
+function fn(n) {
+    if (!n || n === 0) return '0';
+    return Number(n).toLocaleString('en-US');
+}
+function fmtBytes(b) {
+    if (b < 1024)           return b + ' B';
+    if (b < 1024 * 1024)    return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function showError(msg) {
+    id('errorBox').style.display = 'block';
+    id('errorBody').textContent  = msg;
+}
+function clearError() {
+    id('errorBox').style.display = 'none';
+    id('errorBody').textContent  = '';
+}
+</script>
+</body>
+</html>
