@@ -1,0 +1,17 @@
+# .NET
+backend/bin/
+backend/obj/
+backend/*.user
+backend/.vs/
+backend/appsettings.Development.json
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# Misc
+.DS_Store
+*.suo
+*.swp
