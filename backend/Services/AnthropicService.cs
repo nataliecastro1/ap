@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using RoiExtractor.Api.Models;
 
@@ -11,18 +12,45 @@ public interface IAnthropicService
     Task<RoarData> ExtractFromTextAsync(string text, CancellationToken ct = default);
 }
 
+// Handles Claude returning "1,080,000" or "$1,080,000" instead of 1080000
+file sealed class FlexibleDecimalConverter : JsonConverter<decimal>
+{
+    public override decimal Read(ref Utf8JsonReader reader, Type _, JsonSerializerOptions __)
+    {
+        if (reader.TokenType == JsonTokenType.Number)
+            return reader.GetDecimal();
+
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString()?.Replace("$", "").Replace(",", "").Trim();
+            return decimal.TryParse(s, out var d) ? d : 0;
+        }
+
+        reader.Skip();
+        return 0;
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions _)
+        => writer.WriteNumberValue(value);
+}
+
 public class AnthropicService(HttpClient http, IConfiguration config) : IAnthropicService
 {
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
     private const string Model  = "claude-sonnet-4-20250514";
 
-    private readonly string _apiKey = config["Anthropic:ApiKey"]
-        ?? throw new InvalidOperationException("Anthropic:ApiKey is not configured.");
+    private readonly string _apiKey =
+        config["Anthropic:ApiKey"] is { Length: > 0 } k
+            ? k
+            : throw new InvalidOperationException(
+                "Anthropic:ApiKey is missing. Add it to appsettings.Development.json or set " +
+                "the environment variable ANTHROPIC__ApiKey.");
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy        = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true,
+        Converters                  = { new FlexibleDecimalConverter() },
     };
 
     public Task<RoarData> ExtractFromPdfAsync(string base64Pdf, CancellationToken ct = default)
