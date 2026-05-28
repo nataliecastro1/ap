@@ -13,7 +13,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
+builder.Services.AddHttpClient<IAnthropicService, AiExtractionService>();
 
 builder.Services.AddCors(opts =>
     opts.AddDefaultPolicy(p => p
