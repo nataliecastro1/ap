@@ -40,10 +40,10 @@ public class AiExtractionService(HttpClient http, IConfiguration config) : IAnth
         config["Ai:ApiKey"] is { Length: > 0 } k ? k
         : throw new InvalidOperationException(
             "Ai:ApiKey is missing. Add it to appsettings.Development.json.\n" +
-            "  Gemini (free):  AIzaSy…  →  get at aistudio.google.com\n" +
+            "  Gemini (free):  AIzaSy… or AQ.…  →  get at aistudio.google.com\n" +
             "  Claude:         sk-ant-… →  get at console.anthropic.com");
 
-    private bool IsGemini => _apiKey.StartsWith("AIza");
+    private bool IsGemini => _apiKey.StartsWith("AIza") || _apiKey.StartsWith("AQ.");
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {

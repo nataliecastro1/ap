@@ -654,10 +654,10 @@ function onApiKey(el) {
     const dot = id('keyDot'), msg = id('keyMsg');
     if (!S.apiKey) {
         dot.className = 'dot'; msg.textContent = 'Enter your Gemini API key to begin';
-    } else if (S.apiKey.startsWith('AIza')) {
+    } else if (S.apiKey.startsWith('AIza') || S.apiKey.startsWith('AQ.')) {
         dot.className = 'dot ok'; msg.textContent = 'API key looks valid ✓';
     } else {
-        dot.className = 'dot fail'; msg.textContent = 'Gemini keys start with AIza…';
+        dot.className = 'dot fail'; msg.textContent = 'Key should start with AIza… or AQ.…';
     }
     sync();
 }
@@ -692,7 +692,7 @@ function clearFile() {
 }
 
 function sync() {
-    id('processBtn').disabled = !(S.apiKey.startsWith('AIza') && S.file);
+    id('processBtn').disabled = !((S.apiKey.startsWith('AIza') || S.apiKey.startsWith('AQ.')) && S.file);
 }
 
 // ════════════════════════════════════════════════════
