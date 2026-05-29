@@ -96,7 +96,17 @@ public class AiExtractionService(HttpClient http, IConfiguration config) : IAnth
         var json     = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}: {json}");
+        {
+            var hint = (int)response.StatusCode switch
+            {
+                503 => " — Gemini overloaded or PDF too large. Try a smaller file or wait 30 seconds and retry.",
+                429 => " — Rate limit hit on the free tier. Wait 60 seconds and try again.",
+                400 => " — Bad request. The file may be corrupted or unsupported.",
+                401 or 403 => " — Invalid API key. Check your key in appsettings.Development.json.",
+                _   => ""
+            };
+            throw new HttpRequestException($"Gemini API returned {(int)response.StatusCode}{hint}\n\nDetails: {json}");
+        }
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;

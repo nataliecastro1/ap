@@ -25,6 +25,10 @@ public class ExtractController(IAnthropicService anthropic, ILogger<ExtractContr
         if (ext is not (".pdf" or ".pptx"))
             return BadRequest(new { error = "Only PDF and PPTX files are supported." });
 
+        // Gemini free tier struggles with PDFs over ~4 MB
+        if (ext == ".pdf" && file.Length > 4 * 1024 * 1024)
+            return BadRequest(new { error = $"PDF is {file.Length / 1024 / 1024} MB. The Gemini free tier works best with files under 4 MB. Try compressing the PDF or use a PPTX instead." });
+
         logger.LogInformation("Processing {FileName} ({Bytes:N0} bytes)", file.FileName, file.Length);
 
         try
