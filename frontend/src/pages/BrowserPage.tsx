@@ -5,16 +5,9 @@ import { useAuth } from '../hooks/useAuth'
 import { useExtraction } from '../hooks/useExtraction'
 import { CLIENTS, PUBLISHERS, YEARS } from '../data/mockClients'
 import { formatBytes } from '../utils/formatting'
+import type { RoarData } from '../types'
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-
-interface BrowserSelection {
-  client: string
-  year: string
-  publisher: string
-  fileType: 'ROAR' | 'ELP'
-  file?: File
-}
 
 interface ModalState {
   open: boolean
@@ -27,40 +20,29 @@ interface ModalState {
 export default function BrowserPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { status, error, step, extract } = useExtraction()
 
   // File browser state
-  const [activeLetter, setActiveLetter] = useState<string | null>(null)
-  const [expandedClient, setExpandedClient] = useState<string | null>(null)
-  const [expandedYear, setExpandedYear] = useState<string | null>(null)
+  const [activeLetter, setActiveLetter]           = useState<string | null>(null)
+  const [expandedClient, setExpandedClient]       = useState<string | null>(null)
+  const [expandedYear, setExpandedYear]           = useState<string | null>(null)
   const [expandedPublisher, setExpandedPublisher] = useState<string | null>(null)
 
   // Upload drop zone state
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [dragOver, setDragOver] = useState(false)
+  const [dragOver, setDragOver]     = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Modal state
   const [modal, setModal] = useState<ModalState>({
-    open: false,
-    client: '',
-    publisher: '',
-    fileType: 'ROAR',
-    file: null,
+    open: false, client: '', publisher: '', fileType: 'ROAR', file: null,
   })
-  const [modalDocType, setModalDocType] = useState<'ROAR' | 'ELP'>('ROAR')
+  const [modalDocType, setModalDocType]     = useState<'ROAR' | 'ELP'>('ROAR')
   const [modalPublisher, setModalPublisher] = useState('')
 
-  function openModalForBrowser(sel: BrowserSelection) {
-    setModal({
-      open: true,
-      client: sel.client,
-      publisher: sel.publisher,
-      fileType: sel.fileType,
-      file: sel.file ?? null,
-    })
-    setModalDocType(sel.fileType)
-    setModalPublisher(sel.publisher)
+  function openModalForBrowser(client: string, publisher: string, fileType: 'ROAR' | 'ELP') {
+    setModal({ open: true, client, publisher, fileType, file: null })
+    setModalDocType(fileType)
+    setModalPublisher(publisher)
   }
 
   function openModalForUpload(file: File) {
@@ -98,7 +80,7 @@ export default function BrowserPage() {
   }
 
   function handleProcessFile(client: string, publisher: string, fileType: 'ROAR' | 'ELP') {
-    openModalForBrowser({ client, publisher, year: expandedYear ?? '', fileType })
+    openModalForBrowser(client, publisher, fileType)
   }
 
   // ── Upload drop zone handlers ──────────────────────────────────────────────
@@ -129,9 +111,9 @@ export default function BrowserPage() {
     if (f) acceptFile(f)
   }
 
-  async function handleModalExtract() {
-    if (!modal.file) return
-    await extract(modal.file, modalDocType, modalPublisher)
+  function handleExtractSuccess(data: RoarData) {
+    closeModal()
+    navigate('/dashboard', { state: data })
   }
 
   return (
@@ -171,7 +153,7 @@ export default function BrowserPage() {
 
             {/* Tree */}
             <div className="file-tree">
-              {activeLetter && CLIENTS[activeLetter] && (
+              {activeLetter && CLIENTS[activeLetter] ? (
                 <div className="tree-letter-section">
                   <div className="tree-letter-heading">{activeLetter}</div>
                   {CLIENTS[activeLetter].map(client => (
@@ -231,9 +213,7 @@ export default function BrowserPage() {
                     </div>
                   ))}
                 </div>
-              )}
-
-              {!activeLetter && (
+              ) : (
                 <div className="tree-empty">
                   <div className="tree-empty-icon">📂</div>
                   <div className="tree-empty-text">Select a letter above to browse clients</div>
@@ -262,12 +242,16 @@ export default function BrowserPage() {
                 <>
                   <div className="upload-drop-icon">
                     <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                   </div>
                   <div className="upload-drop-title">Drop your document here</div>
                   <div className="upload-drop-hint">PDF or PPTX · Max 50 MB</div>
-                  <button className="btn-browse-file" onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}>
+                  <button
+                    className="btn-browse-file"
+                    onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
+                  >
                     Browse Files
                   </button>
                 </>
@@ -328,169 +312,165 @@ export default function BrowserPage() {
 
       {/* ── Modal overlay ─────────────────────────────────────────────────── */}
       {modal.open && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title">Process Document</div>
-              <button className="modal-close" onClick={closeModal}>✕</button>
-            </div>
-
-            <div className="modal-body">
-              {/* File details */}
-              <div className="modal-file-strip">
-                <div className="modal-detail">
-                  <span className="modal-detail-label">Client</span>
-                  <span className="modal-detail-value">{modal.client || 'Uploaded file'}</span>
-                </div>
-                {modal.client && (
-                  <div className="modal-detail">
-                    <span className="modal-detail-label">File</span>
-                    <span className="modal-detail-value">{modal.fileType} Report</span>
-                  </div>
-                )}
-                {modal.file && (
-                  <div className="modal-detail">
-                    <span className="modal-detail-label">Filename</span>
-                    <span className="modal-detail-value file-name-truncate">{modal.file.name}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Document type */}
-              <div className="modal-field">
-                <label className="modal-field-label">Document Type</label>
-                <div className="modal-radio-group">
-                  {(['ROAR', 'ELP'] as const).map(dt => (
-                    <label key={dt} className={`modal-radio-btn${modalDocType === dt ? ' selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="docType"
-                        value={dt}
-                        checked={modalDocType === dt}
-                        onChange={() => setModalDocType(dt)}
-                      />
-                      <span className="modal-radio-icon">{dt === 'ROAR' ? '📄' : '📊'}</span>
-                      <span>{dt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Publisher */}
-              <div className="modal-field">
-                <label className="modal-field-label" htmlFor="modal-publisher">Publisher</label>
-                <input
-                  id="modal-publisher"
-                  className="modal-input"
-                  type="text"
-                  list="publisher-list"
-                  placeholder="e.g. Microsoft, Oracle, Adobe…"
-                  value={modalPublisher}
-                  onChange={e => setModalPublisher(e.target.value)}
-                />
-                <datalist id="publisher-list">
-                  {PUBLISHERS.map(p => <option key={p} value={p} />)}
-                </datalist>
-              </div>
-
-              {/* Error state */}
-              {error && (
-                <div className="error-box" style={{ marginBottom: 0 }}>
-                  <div className="error-title">Extraction Error</div>
-                  <div className="error-body">{error}</div>
-                </div>
-              )}
-
-              {/* Loading state */}
-              {status === 'loading' && (
-                <div className="modal-loading">
-                  <div className="spinner-sm" />
-                  <span>{step || 'Processing document…'}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <ModalExtractButton
-                file={modal.file}
-                docType={modalDocType}
-                publisher={modalPublisher}
-                onExtract={handleModalExtract}
-                loading={status === 'loading'}
-                onNavigate={(data) => { closeModal(); navigate('/dashboard', { state: data }) }}
-                extractHook={{ status, error }}
-              />
-              <button className="modal-cancel" onClick={closeModal} disabled={status === 'loading'}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProcessModal
+          modal={modal}
+          docType={modalDocType}
+          publisher={modalPublisher}
+          onDocTypeChange={setModalDocType}
+          onPublisherChange={setModalPublisher}
+          onClose={closeModal}
+          onSuccess={handleExtractSuccess}
+        />
       )}
     </div>
   )
 }
 
-// Sub-component to handle extraction + navigation cleanly
-interface ModalExtractButtonProps {
-  file: File | null
-  docType: string
+// ── Process Modal ─────────────────────────────────────────────────────────────
+
+interface ProcessModalProps {
+  modal: ModalState
+  docType: 'ROAR' | 'ELP'
   publisher: string
-  onExtract: () => Promise<void>
-  loading: boolean
-  onNavigate: (data: import('../types').RoarData) => void
-  extractHook: { status: string; error: string | null }
+  onDocTypeChange: (v: 'ROAR' | 'ELP') => void
+  onPublisherChange: (v: string) => void
+  onClose: () => void
+  onSuccess: (data: RoarData) => void
 }
 
-function ModalExtractButton({ file, docType, publisher, loading, onNavigate }: ModalExtractButtonProps) {
-  const { extract, status, data, error: extractError, step } = useExtraction()
+function ProcessModal({
+  modal, docType, publisher,
+  onDocTypeChange, onPublisherChange,
+  onClose, onSuccess,
+}: ProcessModalProps) {
+  const { extract, status, data, error, step, reset } = useExtraction()
 
-  async function handleClick() {
-    if (!file) return
-    await extract(file, docType, publisher)
-  }
-
-  // Navigate when extraction succeeds
   if (status === 'success' && data) {
-    // Use a timeout to allow React to finish rendering
-    setTimeout(() => onNavigate(data), 0)
+    // Defer navigation to avoid calling onSuccess during render
+    Promise.resolve().then(() => {
+      reset()
+      onSuccess(data)
+    })
   }
 
-  const isLoading = status === 'loading' || loading
+  async function handleExtract() {
+    if (!modal.file) return
+    await extract(modal.file, docType, publisher)
+  }
+
+  const isLoading = status === 'loading'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
-      {extractError && (
-        <div className="error-box" style={{ marginBottom: 0 }}>
-          <div className="error-title">Extraction Error</div>
-          <div className="error-body">{extractError}</div>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Process Document</div>
+          <button className="modal-close" onClick={onClose} disabled={isLoading}>✕</button>
         </div>
-      )}
-      {isLoading && (
-        <div className="modal-loading">
-          <div className="spinner-sm" />
-          <span>{step || 'Processing document…'}</span>
+
+        <div className="modal-body">
+          {/* File details strip */}
+          <div className="modal-file-strip">
+            <div className="modal-detail">
+              <span className="modal-detail-label">Client</span>
+              <span className="modal-detail-value">{modal.client || 'Uploaded file'}</span>
+            </div>
+            {modal.client && (
+              <div className="modal-detail">
+                <span className="modal-detail-label">Type</span>
+                <span className="modal-detail-value">{modal.fileType} Report</span>
+              </div>
+            )}
+            {modal.file && (
+              <div className="modal-detail">
+                <span className="modal-detail-label">File</span>
+                <span className="modal-detail-value file-name-truncate">{modal.file.name}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Document type */}
+          <div className="modal-field">
+            <label className="modal-field-label">Document Type</label>
+            <div className="modal-radio-group">
+              {(['ROAR', 'ELP'] as const).map(dt => (
+                <label key={dt} className={`modal-radio-btn${docType === dt ? ' selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="docType"
+                    value={dt}
+                    checked={docType === dt}
+                    onChange={() => onDocTypeChange(dt)}
+                    disabled={isLoading}
+                  />
+                  <span className="modal-radio-icon">{dt === 'ROAR' ? '📄' : '📊'}</span>
+                  <span>{dt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Publisher */}
+          <div className="modal-field">
+            <label className="modal-field-label" htmlFor="modal-publisher">Publisher</label>
+            <input
+              id="modal-publisher"
+              className="modal-input"
+              type="text"
+              list="publisher-list"
+              placeholder="e.g. Microsoft, Oracle, Adobe…"
+              value={publisher}
+              onChange={e => onPublisherChange(e.target.value)}
+              disabled={isLoading}
+            />
+            <datalist id="publisher-list">
+              {PUBLISHERS.map(p => <option key={p} value={p} />)}
+            </datalist>
+          </div>
+
+          {/* Loading */}
+          {isLoading && (
+            <div className="modal-loading">
+              <span className="spinner-sm" />
+              <span>{step || 'Processing document…'}</span>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="error-box" style={{ marginBottom: 0 }}>
+              <div className="error-title">Extraction Error</div>
+              <div className="error-body">{error}</div>
+            </div>
+          )}
         </div>
-      )}
-      <button
-        className="btn-extract-roi"
-        onClick={handleClick}
-        disabled={!file || isLoading}
-      >
-        {isLoading ? (
-          <>
-            <span className="spinner-sm" />
-            Extracting…
-          </>
-        ) : (
-          <>
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Extract ROI Data
-          </>
-        )}
-      </button>
+
+        <div className="modal-footer">
+          <button
+            className="btn-extract-roi"
+            onClick={handleExtract}
+            disabled={!modal.file || isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner-sm" />
+                Extracting…
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Extract ROI Data
+              </>
+            )}
+          </button>
+          <button className="modal-cancel" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
