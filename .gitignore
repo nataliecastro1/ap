@@ -11,6 +11,12 @@ frontend/dist/
 frontend/.env
 frontend/.env.local
 
+# Python backend
+backend-py/.env
+backend-py/__pycache__/
+backend-py/**/__pycache__/
+**/*.pyc
+
 # Misc
 .DS_Store
 *.suo
